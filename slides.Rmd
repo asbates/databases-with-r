@@ -1,0 +1,273 @@
+---
+title: "Databases With R"
+author: "Andrew Bates"
+institute: "San Diego R Users Group"
+date: "2020-07-30"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+
+library(tidyverse)
+```
+
+
+
+
+```{r pokeapi, echo = FALSE}
+knitr::include_graphics("https://raw.githubusercontent.com/PokeAPI/media/master/logo/pokeapi.svg")
+```
+
+<br>
+<br>
+
+PokeAPI: [https://pokeapi.co/](https://pokeapi.co/)
+
+
+---
+
+# Connect to a (local) database
+
+```{r connect-to-db}
+con <- DBI::dbConnect(
+  RSQLite::SQLite(),
+  dbname = "data/pokedex.sqlite"
+  )
+```
+
+
+---
+
+# Query a table with SQL
+
+```{r query-with-dbi}
+DBI::dbGetQuery(
+  con,
+  "SELECT *
+   FROM pokemon
+   LIMIT 10"
+)
+
+```
+
+
+---
+
+# Connect to a table with dplyr
+
+```{r pokemon-tbl}
+pokemon <- tbl(con, "pokemon")
+pokemon
+```
+
+
+---
+
+# Query a table with dplyr
+
+```{r pokemon-query-with-dplyr, warning = FALSE}
+pokemon %>% 
+  summarise(
+    mean_height = mean(height),
+    max_weight = max(weight),
+    sd_xp = sd(base_xp)
+  )
+```
+
+
+---
+
+# Query multiple tables with dplyr
+
+```{r types-tbl}
+types <- tbl(con, "types")
+types
+```
+
+
+---
+
+# Query multiple tables with dplyr
+
+```{r join}
+pokemon_types <- pokemon %>% 
+  left_join(types, by = "pokemon_id")
+
+pokemon_types %>% 
+  select(name, type)
+```
+
+
+---
+
+class: inverse, center, middle
+
+How does dplyr do this?
+
+---
+
+# How does dplyr do this?
+
+
+> dbplyr is the database backend for dplyr. It allows you to use remote database tables as if they are in-memory data frames by automatically converting dplyr code into SQL.
+
+* dplyr is the front end
+* d*b*plyr is the back end
+
+---
+
+# How does dplyr do this?
+
+```{r dplyr-to-sql}
+pokemon %>% 
+  show_query()
+```
+
+
+---
+
+# How does dplyr do this?
+
+```{r dplyr-to-sql-join}
+pokemon %>% 
+  left_join(types, by = "pokemon_id") %>% 
+  show_query()
+```
+
+
+
+---
+
+class: inverse, center, middle
+
+DBI
+
+---
+
+# DBI
+
+> A database interface (DBI) definition for communication between R and RDBMSs 
+
+* defines a databases interface (front end)
+* database specific packages define the back end (e.g. RSQLite)
+
+---
+
+class: center, middle
+
+```{r dbi-interfaces, echo = FALSE}
+knitr::include_graphics("https://mermaid.ink/svg/eyJjb2RlIjoiZ3JhcGggVERcbiAgQShEQkkpIC0tPiBCKFJTUUxpdGUpXG4gIEEgLS0-IEMob2RiYylcbiAgQSAtLT4gRChSUG9zdGdyZXMpXG4gIEEgLS0-IEUoYmlncXVlcnkpXG4gIEEgLS0-IEYoLi4uKVxuXHRcdCIsIm1lcm1haWQiOnsidGhlbWUiOiJkZWZhdWx0In19")
+
+```
+
+
+---
+
+class: inverse, center, middle
+
+Tips
+
+---
+
+# dbplyr: non-default schema
+
+```{r dbplyr-in-schema, eval = FALSE}
+my_table <- tbl(
+  con,
+  dbplyr::in_schema("schema_name", "table_name")
+)
+```
+
+
+---
+
+# dbplyr: non-R functions
+
+prefix functions - leave as is
+
+```{r dplyr-leave-as-is}
+pokemon %>% 
+  transmute(name2 = SUBSTR(name, 1, 2))
+```
+
+---
+
+# dbplyr: non-R functions
+
+infix functions - use '%'
+
+```{r dplyr-infix}
+pokemon %>% 
+  filter(name %like% 'ab%')
+```
+
+---
+
+# dbplyr: non-R functions
+
+special syntax - use `sql()`
+
+
+```{r dbplyr-special-syntax}
+pokemon %>% 
+  transmute(height_int = sql("CAST (height AS INT)"))
+```
+
+---
+
+# Database package
+
+* Create helper functions to:
+
+    * connect to different servers
+    * connect to commonly used tables
+
+* Much easier than remembering 'database xyz', 'schema blah', 'table table_name_1234'
+
+<br>
+
+```{r db-package-example, eval = FALSE}
+library(mycompanydbs)
+con <- connect("prod")
+customers <- remote_customers(con, year = 2020)
+```
+
+
+---
+
+class: inverse, center, middle
+
+Resources
+
+
+---
+
+# Resources
+
+* [db.rstudio.com](https://db.rstudio.com/)
+
+* [dbplyr.tidyverse.org](https://dbplyr.tidyverse.org/index.html)
+
+* [dbi.r-dbi.org](https://dbi.r-dbi.org/)
+
+
+---
+
+# Do more with databases
+
+* Fit models in database with [modeldb](https://modeldb.tidymodels.org/)
+
+* Use a database to do plot calculations with [dbplot](https://edgararuiz.github.io/dbplot/)
+
+
+---
+class: inverse, center, middle
+
+# Thanks!

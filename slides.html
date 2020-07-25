@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Databases With R</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Andrew Bates" />
+    <meta name="date" content="2020-07-30" />
+    <link href="libs/remark-css/default.css" rel="stylesheet" />
+    <link href="libs/remark-css/default-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Databases With R
+### Andrew Bates
+### San Diego R Users Group
+### 2020-07-30
+
+---
+
+
+
+
+
+
+
+![](https://raw.githubusercontent.com/PokeAPI/media/master/logo/pokeapi.svg)&lt;!-- --&gt;
+
+&lt;br&gt;
+&lt;br&gt;
+
+PokeAPI: [https://pokeapi.co/](https://pokeapi.co/)
+
+
+---
+
+# Connect to a (local) database
+
+
+```r
+con &lt;- DBI::dbConnect(
+  RSQLite::SQLite(),
+  dbname = "data/pokedex.sqlite"
+  )
+```
+
+
+---
+
+# Query a table with SQL
+
+
+```r
+DBI::dbGetQuery(
+  con,
+  "SELECT *
+   FROM pokemon
+   LIMIT 10"
+)
+```
+
+```
+##    pokemon_id       name height weight base_xp
+## 1           1  bulbasaur      7     69      64
+## 2           2    ivysaur     10    130     142
+## 3           3   venusaur     20   1000     236
+## 4           4 charmander      6     85      62
+## 5           5 charmeleon     11    190     142
+## 6           6  charizard     17    905     240
+## 7           7   squirtle      5     90      63
+## 8           8  wartortle     10    225     142
+## 9           9  blastoise     16    855     239
+## 10         10   caterpie      3     29      39
+```
+
+
+---
+
+# Connect to a table with dplyr
+
+
+```r
+pokemon &lt;- tbl(con, "pokemon")
+pokemon
+```
+
+```
+## # Source:   table&lt;pokemon&gt; [?? x 5]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##    pokemon_id name       height weight base_xp
+##         &lt;dbl&gt; &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+##  1          1 bulbasaur       7     69      64
+##  2          2 ivysaur        10    130     142
+##  3          3 venusaur       20   1000     236
+##  4          4 charmander      6     85      62
+##  5          5 charmeleon     11    190     142
+##  6          6 charizard      17    905     240
+##  7          7 squirtle        5     90      63
+##  8          8 wartortle      10    225     142
+##  9          9 blastoise      16    855     239
+## 10         10 caterpie        3     29      39
+## # … with more rows
+```
+
+
+---
+
+# Query a table with dplyr
+
+
+```r
+pokemon %&gt;% 
+  summarise(
+    mean_height = mean(height),
+    max_weight = max(weight),
+    sd_xp = sd(base_xp)
+  )
+```
+
+```
+## # Source:   lazy query [?? x 3]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##   mean_height max_weight sd_xp
+##         &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt;
+## 1        12.5       9999  78.1
+```
+
+
+---
+
+# Query multiple tables with dplyr
+
+
+```r
+types &lt;- tbl(con, "types")
+types
+```
+
+```
+## # Source:   table&lt;types&gt; [?? x 2]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##    pokemon_id type  
+##         &lt;dbl&gt; &lt;chr&gt; 
+##  1          1 grass 
+##  2          1 poison
+##  3          2 grass 
+##  4          2 poison
+##  5          3 grass 
+##  6          3 poison
+##  7          4 fire  
+##  8          5 fire  
+##  9          6 fire  
+## 10          6 flying
+## # … with more rows
+```
+
+
+---
+
+# Query multiple tables with dplyr
+
+
+```r
+pokemon_types &lt;- pokemon %&gt;% 
+  left_join(types, by = "pokemon_id")
+
+pokemon_types %&gt;% 
+  select(name, type)
+```
+
+```
+## # Source:   lazy query [?? x 2]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##    name       type  
+##    &lt;chr&gt;      &lt;chr&gt; 
+##  1 bulbasaur  grass 
+##  2 bulbasaur  poison
+##  3 ivysaur    grass 
+##  4 ivysaur    poison
+##  5 venusaur   grass 
+##  6 venusaur   poison
+##  7 charmander fire  
+##  8 charmeleon fire  
+##  9 charizard  fire  
+## 10 charizard  flying
+## # … with more rows
+```
+
+
+---
+
+class: inverse, center, middle
+
+How does dplyr do this?
+
+---
+
+# How does dplyr do this?
+
+
+&gt; dbplyr is the database backend for dplyr. It allows you to use remote database tables as if they are in-memory data frames by automatically converting dplyr code into SQL.
+
+* dplyr is the front end
+* d*b*plyr is the back end
+
+---
+
+# How does dplyr do this?
+
+
+```r
+pokemon %&gt;% 
+  show_query()
+```
+
+```
+## &lt;SQL&gt;
+## SELECT *
+## FROM `pokemon`
+```
+
+
+---
+
+# How does dplyr do this?
+
+
+```r
+pokemon %&gt;% 
+  left_join(types, by = "pokemon_id") %&gt;% 
+  show_query()
+```
+
+```
+## &lt;SQL&gt;
+## SELECT `LHS`.`pokemon_id` AS `pokemon_id`, `LHS`.`name` AS `name`, `LHS`.`height` AS `height`, `LHS`.`weight` AS `weight`, `LHS`.`base_xp` AS `base_xp`, `RHS`.`type` AS `type`
+## FROM `pokemon` AS `LHS`
+## LEFT JOIN `types` AS `RHS`
+## ON (`LHS`.`pokemon_id` = `RHS`.`pokemon_id`)
+```
+
+
+
+---
+
+class: inverse, center, middle
+
+DBI
+
+---
+
+# DBI
+
+&gt; A database interface (DBI) definition for communication between R and RDBMSs 
+
+* defines a databases interface (front end)
+* database specific packages define the back end (e.g. RSQLite)
+
+---
+
+class: center, middle
+
+![](https://mermaid.ink/svg/eyJjb2RlIjoiZ3JhcGggVERcbiAgQShEQkkpIC0tPiBCKFJTUUxpdGUpXG4gIEEgLS0-IEMob2RiYylcbiAgQSAtLT4gRChSUG9zdGdyZXMpXG4gIEEgLS0-IEUoYmlncXVlcnkpXG4gIEEgLS0-IEYoLi4uKVxuXHRcdCIsIm1lcm1haWQiOnsidGhlbWUiOiJkZWZhdWx0In19)&lt;!-- --&gt;
+
+
+---
+
+class: inverse, center, middle
+
+Tips
+
+---
+
+# dbplyr: non-default schema
+
+
+```r
+my_table &lt;- tbl(
+  con,
+  dbplyr::in_schema("schema_name", "table_name")
+)
+```
+
+
+---
+
+# dbplyr: non-R functions
+
+prefix functions - leave as is
+
+
+```r
+pokemon %&gt;% 
+  transmute(name2 = SUBSTR(name, 1, 2))
+```
+
+```
+## # Source:   lazy query [?? x 1]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##    name2
+##    &lt;chr&gt;
+##  1 bu   
+##  2 iv   
+##  3 ve   
+##  4 ch   
+##  5 ch   
+##  6 ch   
+##  7 sq   
+##  8 wa   
+##  9 bl   
+## 10 ca   
+## # … with more rows
+```
+
+---
+
+# dbplyr: non-R functions
+
+infix functions - use '%'
+
+
+```r
+pokemon %&gt;% 
+  filter(name %like% 'ab%')
+```
+
+```
+## # Source:   lazy query [?? x 5]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##   pokemon_id name           height weight base_xp
+##        &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+## 1         63 abra                9    195      62
+## 2        359 absol              12    470     163
+## 3        460 abomasnow          22   1355     173
+## 4      10057 absol-mega         12    490     198
+## 5      10060 abomasnow-mega     27   1850     208
+```
+
+---
+
+# dbplyr: non-R functions
+
+special syntax - use `sql()`
+
+
+
+```r
+pokemon %&gt;% 
+  transmute(height_int = sql("CAST (height AS INT)"))
+```
+
+```
+## # Source:   lazy query [?? x 1]
+## # Database: sqlite 3.30.1
+## #   [/Users/andrewbates/Desktop/Projects/databases-with-r/data/pokedex.sqlite]
+##    height_int
+##         &lt;int&gt;
+##  1          7
+##  2         10
+##  3         20
+##  4          6
+##  5         11
+##  6         17
+##  7          5
+##  8         10
+##  9         16
+## 10          3
+## # … with more rows
+```
+
+---
+
+# Database package
+
+* Create helper functions to:
+
+    * connect to different servers
+    * connect to commonly used tables
+
+* Much easier than remembering 'database xyz', 'schema blah', 'table table_name_1234'
+
+&lt;br&gt;
+
+
+```r
+library(mycompanydbs)
+con &lt;- connect("prod")
+customers &lt;- remote_customers(con, year = 2020)
+```
+
+
+---
+
+class: inverse, center, middle
+
+Resources
+
+
+---
+
+# Resources
+
+* [db.rstudio.com](https://db.rstudio.com/)
+
+* [dbplyr.tidyverse.org](https://dbplyr.tidyverse.org/index.html)
+
+* [dbi.r-dbi.org](https://dbi.r-dbi.org/)
+
+
+---
+
+# Do more with databases
+
+* Fit models in database with [modeldb](https://modeldb.tidymodels.org/)
+
+* Use a database to do plot calculations with [dbplot](https://edgararuiz.github.io/dbplot/)
+
+
+---
+class: inverse, center, middle
+
+# Thanks!
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
