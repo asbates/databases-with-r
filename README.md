@@ -1,7 +1,7 @@
 # Databases With R
 
 This repository contains the material for my talk 'Databases With R' at the
-  combined San Diego/Boston/South Coast MA useR meeting on July 30, 2020.
+  combined San Diego/Boston/South Coast MA useR and San Diego R-Ladies meeting on July 30, 2020.
 I show a few basic examples of using databases from within R, provide a few
   tips for effectively incorporating databases in your R workflow, and point
   to a few resources to learn more.
